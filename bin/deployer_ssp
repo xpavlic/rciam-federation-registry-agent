@@ -75,16 +75,21 @@ return ["""
         'src' => '""" + str(service["src"]) + """',
     ],"""
         )
-    f = open(path, "w")
+
+    temporary = "/tmp/temporary-metadata.php"
+    f = open(temporary, "w+")
     f.write(header + content + footer)
     f.close()
+
+    subprocess.run(f"docker cp {temporary} simplesamlphp:{path}", shell=True)
 
 
 # Get current services
 def get_services_from_conf(metadata_path):
     log.info("Read existing metadata file at " + metadata_path)
     services_data = subprocess.run(
-        ["php", "-r", 'echo json_encode(include "' + metadata_path + '");'],
+        #["php", "-r", 'echo json_encode(include "' + metadata_path + '");'],
+        ["docker", "exec", "simplesamlphp", "php", "-r", 'echo json_encode(include "' + metadata_path + '");'],
         universal_newlines=True,
         stdout=subprocess.PIPE,
     )
