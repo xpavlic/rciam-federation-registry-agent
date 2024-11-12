@@ -1,0 +1,303 @@
+#!/usr/bin/env python3
+
+import argparse
+import base64
+import json
+import logging
+import os
+import time
+
+from CAS.CasClientApi import CasClientApi
+from ServiceRegistryAms.PullPublish import PullPublish
+from Utils.common import get_log_conf, publish_ams, create_ams_response
+
+# Setup logger
+log = logging.getLogger(__name__)
+
+
+class CasApiException(Exception):
+    def __init__(self, response):
+        super().__init__()
+        self.response = response
+
+
+def build_response_types_from_grant_types(grant_types):
+    response_types = []
+    if "authorization_code" in grant_types:
+        response_types.append("code")
+    if "implicit" in grant_types:
+        response_types.append("token")
+        response_types.append("id_token")
+        response_types.append("id_token token")
+    if "urn:ietf:params:oauth:grant-type:device_code" in grant_types:
+        response_types.append("device_code")
+    if "hybrid" in grant_types:
+        response_types.append("id_token token")
+    return ["java.util.HashSet", response_types]
+
+
+def build_service_id_from_redirect_uris(redirect_uris):
+    pattern = "^(" + "|".join(redirect_uris) + ")$"
+    return pattern
+
+
+def generate_client_id():
+    return base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
+
+
+def build_cas_msg_oidc(msg, new_msg, cas_agent):
+    # No configurations for:
+    #   token_endpoint_auth_signing_alg
+    # Code challenge methods are always enabled for every CAS service
+    new_msg["@class"] = "org.apereo.cas.services.OidcRegisteredService"
+    if "client_id" in msg and msg["client_id"]:
+        new_msg["clientId"] = msg.pop("client_id")
+    elif msg["deployment_type"] == "create":
+        while not new_msg.get("clientId"):
+            new_client_id = generate_client_id()
+            response = cas_agent.get_client_by_client_id(new_client_id)
+            if response.get("error"):
+                raise CasApiException(response)
+            if not cas_agent.get_client_by_client_id(new_client_id).get("response"):
+                new_msg["clientId"] = new_client_id
+
+    if "redirect_uris" in msg:
+        redirect_uris = msg.pop("redirect_uris")
+        new_msg["serviceId"] = build_service_id_from_redirect_uris(redirect_uris)
+    issue_refresh_tokens = False
+    if "scope" in msg:
+        if "offline_access" in msg.get("scope"):
+            issue_refresh_tokens = True
+        new_msg["scopes"] = ["java.util.HashSet", msg.pop("scope")]
+    if "grant_types" in msg:
+        grant_types = set(msg.pop("grant_types"))
+        if issue_refresh_tokens:
+            grant_types.add("refresh_token")
+        list_grant_types = list(grant_types)
+        new_msg["supportedGrantTypes"] = ["java.util.HashSet", list_grant_types]
+
+        new_msg["supportedResponseTypes"] = build_response_types_from_grant_types(
+            list_grant_types
+        )
+
+    if issue_refresh_tokens:
+        new_msg["generateRefreshToken"] = True
+
+    if "token_endpoint_auth_method" in msg:
+        token_endpoint_auth_method = msg.pop("token_endpoint_auth_method")
+        if token_endpoint_auth_method == "none":
+            new_msg["tokenEndpointAuthenticationMethod"] = "client_secret_basic"
+        else:
+            new_msg["tokenEndpointAuthenticationMethod"] = token_endpoint_auth_method
+    if "client_secret" in msg:
+        new_msg["clientSecret"] = msg.pop("client_secret")
+    if "jwks" in msg:
+        new_msg["jwks"] = json.dumps(msg.pop("jwks"))
+    if "jwks_uri" in msg:
+        new_msg["jwks"] = msg.pop("jwks")
+    if "refresh_token_validity_seconds" in msg:
+        new_msg["refreshTokenExpirationPolicy"] = {
+            "@class": "org.apereo.cas.support.oauth.services.DefaultRegisteredServiceOAuthRefreshTokenExpirationPolicy",
+            "timeToKill": f"PT{str(msg['refresh_token_validity_seconds'])}S"
+        }
+        if "reuse_refresh_token" in msg:
+            new_msg["renewRefreshToken"] = not msg.pop("reuse_refresh_token")
+    if "access_token_validity_seconds" in msg:
+        access_token_validity = str(msg["access_token_validity_seconds"])
+        if msg.pop("access_token_validity_seconds") < 60:
+            access_token_validity = "60"
+        new_msg["accessTokenExpirationPolicy"] = {
+            "@class": "org.apereo.cas.support.oauth.services.DefaultRegisteredServiceOAuthAccessTokenExpirationPolicy",
+            "maxTimeToLive": f"PT{access_token_validity}S",
+            "timeToKill": f"PT{access_token_validity}S"
+        }
+    if "id_token_timeout_seconds" in msg:
+        new_msg["idTokenExpirationPolicy"] = {
+            "@class": "org.apereo.cas.oidc.services.DefaultRegisteredServiceOidcIdTokenExpirationPolicy",
+            "timeToLive": f"PT{str(msg['id_token_timeout_seconds'])}S"
+        }
+    if "device_code_validity_seconds" in msg:
+        new_msg["deviceTokenExpirationPolicy"] = {
+            "@class": "org.apereo.cas.support.oauth.services.DefaultRegisteredServiceOAuthDeviceTokenExpirationPolicy",
+            "timeToKill": f"PT{str(msg['device_code_validity_seconds'])}S"
+        }
+
+
+def msg_add_cas_saml_attribute_policy(requested_attributes, new_msg):
+    if not requested_attributes:
+        return
+    attribute_mappings = {"@class": "java.util.TreeMap"}
+    attribute_name_formats = {"@class": "java.util.HashMap"}
+
+    for attribute in requested_attributes:
+        friendly_name = attribute["friendly_name"]
+        urn_name = attribute["name"]
+
+        attribute_mappings[friendly_name] = urn_name
+
+        attribute_name_formats[friendly_name] = attribute.get(
+            "name_format",
+            "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+        )
+
+    new_msg["attributeReleasePolicy"] = {
+        "@class": "org.apereo.cas.services.ReturnMappedAttributeReleasePolicy",
+        "allowedAttributes": attribute_mappings
+    }
+    new_msg["attributeNameFormats"] = attribute_name_formats
+
+
+def build_cas_msg_saml(msg, new_msg):
+    new_msg["@class"] = "org.apereo.cas.support.saml.services.SamlRegisteredService"
+    if "entity_id" in msg:
+        new_msg["serviceId"] = msg.pop("entity_id")
+    if "metadata_url" in msg:
+        new_msg["metadataLocation"] = msg.pop("metadata_url")
+    if "requested_attributes" in msg:
+        msg_add_cas_saml_attribute_policy(msg["requested_attributes"], new_msg)
+
+
+def format_cas_msg(msg, cas_agent):
+    new_msg = {}
+    if "service_name" in msg:
+        new_msg["name"] = msg.pop("service_name")
+    if "service_description" in msg:
+        new_msg["description"] = msg.pop("service_description")
+    if "logo_uri" in msg:
+        new_msg["logo"] = msg.pop("logo_uri")
+    if "policy_uri" in msg:
+        new_msg["privacyUrl"] = msg.pop("policy_uri")
+    if "website_url" in msg:
+        new_msg["informationUrl"] = msg.pop("website_url")
+
+    if "aup_uri" in msg:
+        aup_uri = msg.pop("aup_uri")
+        if aup_uri:
+            new_msg["acceptableUsagePolicy"] = {
+                "@class": "org.apereo.cas.services.DefaultRegisteredServiceAcceptableUsagePolicy",
+                "enabled": True,
+                "text": aup_uri
+            }
+
+    new_msg_contacts = []
+    if "contacts" in msg:
+        new_msg_contacts.append(
+            ["java.util.ArrayList", [
+                {
+                    "@class": "org.apereo.cas.services.DefaultRegisteredServiceContact",
+                    "email": contact["email"],
+                    "type": contact["type"]
+                } for contact in msg["contacts"]
+            ]]
+        )
+
+    if "protocol" in msg:
+        if msg["protocol"] == "oidc":
+            build_cas_msg_oidc(msg, new_msg, cas_agent)
+
+        elif msg["protocol"] == "saml":
+            build_cas_msg_saml(msg, new_msg)
+        msg.pop("protocol")
+    return new_msg
+
+
+def deploy_to_cas(registry_message, cas_agent):
+    deployment_type = registry_message["deployment_type"]
+    cas_msg = format_cas_msg(registry_message, cas_agent)
+    response = {}
+    external_id = ""
+    client_id = ""
+    if deployment_type == "create":
+        log.info("Create new client")
+        print(cas_msg)
+        response = cas_agent.create_client(cas_msg)
+        if response["status"] == 200:
+            external_id = response["response"].get("id")
+            client_id = response["response"].get("clientId", "")
+    elif deployment_type == "delete":
+        external_id = registry_message["external_id"]
+        log.info("Delete client with id: " + str(external_id))
+        response = cas_agent.delete_client_by_external_id(external_id)
+    elif deployment_type == "edit":
+        external_id = registry_message["external_id"]
+        log.info("Update client with id: " + str(external_id))
+        cas_msg["id"] = int(external_id)
+        response = cas_agent.update_client(cas_msg)
+        external_id = response["response"].get("id")
+        client_id = response["response"].get("clientId", "")
+    return response, str(external_id), client_id
+
+
+def process_data(messages, cas_url, username, password):
+    deployer_name = ""
+    # messages to be published
+    pub_messages = []
+    # Create Cas agent
+    cas_agent = CasClientApi(cas_url, username, password)
+    for msg in messages:
+        log.debug("Message from ams: " + str(msg))
+        # Remove rciam service id to make request to Cas
+        service_id = msg.pop("id")
+        external_id = ""
+        client_id = ""
+        try:
+            response, external_id, client_id = deploy_to_cas(msg, cas_agent)
+            log.info("Message received from Cas: " + str(response))
+            ams_message = create_ams_response(
+                response,
+                service_id,
+                deployer_name,
+                external_id,
+                client_id,
+            )
+        except Exception as e:
+            log.critical(f"Exception catch, return error to ams. Exception {e}")
+            ams_message = create_ams_response(
+                {"status": 0, "error": f"An error occurred while calling Cas. Error: {e}"},
+                service_id,
+                deployer_name,
+                external_id,
+                client_id,
+            )
+        pub_messages.append({"attributes": {}, "data": ams_message})
+    return pub_messages
+
+
+if __name__ == "__main__":
+    # Get config path from arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-c",
+        required=True,
+        type=str,
+        help="Configuration file location path"
+    )
+    args = parser.parse_args()
+    path = args.c
+    with open(path) as json_data_file:
+        config = json.load(json_data_file)
+
+    # Get log_conf from project arguments else use the global setting
+    if "log_conf" in config["cas"]:
+        get_log_conf(config["cas"]["log_conf"])
+    else:
+        get_log_conf(config["log_conf"])
+
+    log.info("Init ams agent")
+    ams = PullPublish(config["cas"]["ams"])
+
+    # Get messages
+    while True:
+        log.info("Pull messages from ams")
+        messages, ids = ams.pull(1)
+        log.info("Received " + str(len(messages)) + " messages from ams")
+        if len(messages) > 0:
+            username = config["cas"]["username"]
+            password = config["cas"]["password"]
+            cas_url = config["cas"]["cas_url"]
+
+            ams.ack(ids)
+            responses = process_data(messages, cas_url, username, password)
+            publish_ams(responses, ams, log)
+        time.sleep(config["cas"]["ams"]["poll_interval"])
+    log.info("Exit script")

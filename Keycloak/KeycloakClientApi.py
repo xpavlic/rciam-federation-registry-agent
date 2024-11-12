@@ -1,6 +1,5 @@
 from urllib.parse import quote
-
-import requests
+from Utils.common import http_request
 
 """
 Manages all clients on Keycloak
@@ -41,7 +40,7 @@ class KeycloakClientApi:
         )
         header = {"Authorization": "Bearer " + self.token}
 
-        return self.http_request("GET", url, header)
+        return http_request("GET", url, header)
 
     """
     Register new client
@@ -60,7 +59,7 @@ class KeycloakClientApi:
             "Content-Type": "application/json",
         }
 
-        return self.http_request("POST", url, header, client_object)
+        return http_request("POST", url, header, client_object)
 
     """
     Update an existing client by ID
@@ -82,7 +81,7 @@ class KeycloakClientApi:
             "Content-Type": "application/json",
         }
 
-        return self.http_request("PUT", url, header, client_object)
+        return http_request("PUT", url, header, client_object)
 
     """
     Delete a registered client by ID
@@ -100,7 +99,7 @@ class KeycloakClientApi:
         )
         header = {"Authorization": "Bearer " + self.token}
 
-        return self.http_request("DELETE", url, header)
+        return http_request("DELETE", url, header)
 
     """
     Get OIDC client's "Permissions"
@@ -116,7 +115,7 @@ class KeycloakClientApi:
         url = self.auth_url + "/admin/realms/" + self.realm + "/clients/" + str(keycloak_id) + "/management/permissions"
         header = {"Authorization": "Bearer " + self.token}
 
-        return self.http_request("GET", url, header)
+        return http_request("GET", url, header)
 
     """
     Enable OIDC client's "Permissions"
@@ -138,7 +137,7 @@ class KeycloakClientApi:
             enabled = False
         client_object = {"enabled": enabled}
 
-        return self.http_request("PUT", url, header, client_object)
+        return http_request("PUT", url, header, client_object)
 
     """
     Create Custom Mapper
@@ -154,7 +153,7 @@ class KeycloakClientApi:
     def add_mapper(self,keycloak_id,mapper):
         url = self.auth_url + "/admin/realms/" + self.realm + "/clients/" + str(keycloak_id) + "/protocol-mappers/models"
         header = {"Authorization": "Bearer " + self.token}
-        return self.http_request("POST", url, header, mapper)
+        return http_request("POST", url, header, mapper)
         
 
     """
@@ -212,7 +211,7 @@ class KeycloakClientApi:
             },
         }
 
-        self.http_request("POST", url, header, client_scope_object)
+        http_request("POST", url, header, client_scope_object)
 
     """
     Add client scope to the default or optional client scopes list of the client
@@ -233,7 +232,7 @@ class KeycloakClientApi:
             + client_scope_id
         )
         header = {"Authorization": "Bearer " + self.token}
-        self.http_request("PUT", url, header)
+        http_request("PUT", url, header)
 
     """
     Remove client scope from the default or optional client scopes list of the client
@@ -254,7 +253,7 @@ class KeycloakClientApi:
             + client_scope_id
         )
         header = {"Authorization": "Bearer " + self.token}
-        self.http_request("DELETE", url, header)
+        http_request("DELETE", url, header)
 
     """
     Get the user of the service account
@@ -266,7 +265,7 @@ class KeycloakClientApi:
     def get_service_account_user(self, keycloak_id):
         url = self.auth_url + "/admin/realms/" + self.realm + "/clients/" + keycloak_id + "/service-account-user"
         header = {"Authorization": "Bearer " + self.token}
-        return self.http_request("GET", url, header)
+        return http_request("GET", url, header)
 
     """
     Update user profile information
@@ -298,61 +297,4 @@ class KeycloakClientApi:
             update_flag = True
 
         if update_flag:
-            self.http_request("PUT", url, header, service_account_profile)
-
-    """
-    Wrapper function for Python requests
-
-    Parameters:
-        method (str): The request method
-        url (str): The URL of the Client Registration API
-        header (str): The Headers of the HTTP Request
-        data (str): The data of the HTTP Request, else `None`
-    
-    Returns:
-        response (JSON Object): The status of the HTTP Response
-    """
-
-    def http_request(self, method, url, header, data=None):
-        try:
-            response = requests.request(method, url, headers=header, json=data)
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as errh:
-            print("HTTP Error: %s with error: HTTP %s and response: %s" % (url, response.status_code, response.json()))
-            return {
-                "status": response.status_code,
-                "error": repr(errh),
-                "response": response.json(),
-            }
-        except requests.exceptions.ConnectionError as errc:
-            print(
-                "Connection Error: %s with error: HTTP  %s and response: %s"
-                % (url, response.status_code, response.text)
-            )
-            return {
-                "status": response.status_code,
-                "error": repr(errc),
-                "response": response.json(),
-            }
-        except requests.exceptions.Timeout as errt:
-            print("Timeout Error: %s with error: HTTP %s and response: %s" % (url, response.status_code, response.text))
-            return {
-                "status": response.status_code,
-                "error": repr(errt),
-                "response": response.json(),
-            }
-        except requests.exceptions.RequestException as err:
-            print(
-                "Failed to make request to %s with error: HTTP  %s and response: %s"
-                % (url, response.status_code, response.text)
-            )
-            return {
-                "status": response.status_code,
-                "error": repr(err),
-                "response": response.json(),
-            }
-
-        if method == "DELETE" or response.status_code == 204 or not response.text:
-            return {"status": response.status_code, "response": "OK"}
-        else:
-            return {"status": response.status_code, "response": response.json()}
+            http_request("PUT", url, header, service_account_profile)
