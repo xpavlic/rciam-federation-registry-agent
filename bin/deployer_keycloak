@@ -7,7 +7,12 @@ import time
 
 from Keycloak.KeycloakClientApi import KeycloakClientApi
 from ServiceRegistryAms.PullPublish import PullPublish
-from Utils.common import create_ams_response, get_keycloak_issuer, get_log_conf
+from Utils.common import (
+    create_ams_response,
+    get_keycloak_issuer,
+    get_log_conf,
+    publish_ams,
+)
 from Utils.oauth import client_credentials_grant, refresh_token_grant
 
 # Setup logger
@@ -182,16 +187,6 @@ def process_data(messages, access_token, keycloak_config):
             )
         pub_messages.append({"attributes": {}, "data": ams_message})
     return pub_messages
-
-
-# Publish message to ams upstream topic. Get as arguments
-# - the messages to be published
-# - the ams agent to handle the operation
-def publish_ams(pub_messages, ams_agent):
-    if len(pub_messages) > 0:
-        log.info("Publish messaged to ams")
-        log.debug("Messages published to ams: " + str(pub_messages))
-        ams_agent.publish(pub_messages)
 
 
 # Create the optional client scopes of the client
@@ -392,6 +387,6 @@ if __name__ == "__main__":
                 )
             ams.ack(ids)
             responses = process_data(messages, access_token, config["keycloak"])
-            publish_ams(responses, ams)
+            publish_ams(responses, ams, log)
         time.sleep(config["keycloak"]["ams"]["poll_interval"])
     log.info("Exit script")
