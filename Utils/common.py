@@ -16,7 +16,7 @@ def get_log_conf(log_config_file=None):
 
 # create_ams_response creates a json object with the result of the mitreId api call
 # that is readable from the rciam-federation-registry
-def create_ams_response(response, service_id, deployer_name, external_id, client_id):
+def create_ams_response(response, service_id, deployer_name, external_id, client_id, proxy_deploy_success):
     new_msg = {}
     new_msg["id"] = service_id
     new_msg["status_code"] = response["status"]
@@ -32,6 +32,7 @@ def create_ams_response(response, service_id, deployer_name, external_id, client
     if response["status"] != 200 and response["status"] != 201 and response[
         "status"] != 204:
         new_msg["error_description"] = response["error"]
+        new_msg["proxy_deploy_success"] = proxy_deploy_success
         new_msg["state"] = "error"
     else:
         new_msg["state"] = "deployed"
@@ -129,3 +130,15 @@ def publish_ams(pub_messages, ams_agent, log):
         log.info("Publish messaged to ams")
         log.debug("Messages published to ams: " + str(pub_messages))
         ams_agent.publish(pub_messages)
+
+
+def deploy_to_perun(perun_message, perun_client_api):
+    deployment_type = perun_message["deployment_type"]
+    success = False
+    if deployment_type == "create":
+        success = perun_client_api.register_new_service_in_perun(perun_message)
+    elif deployment_type == "delete":
+        success = perun_client_api.delete_service_in_perun(perun_message)
+    elif deployment_type == "edit":
+        success = perun_client_api.update_service_in_perun(perun_message)
+    return success

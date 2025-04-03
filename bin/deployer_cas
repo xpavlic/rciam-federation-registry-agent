@@ -5,10 +5,12 @@ import json
 import logging
 import time
 import uuid
+from copy import deepcopy
 
 from CAS.CasClientApi import CasClientApi
+from Perun.PerunClientApi import PerunClientApi
 from ServiceRegistryAms.PullPublish import PullPublish
-from Utils.common import get_log_conf, publish_ams, create_ams_response
+from Utils.common import get_log_conf, publish_ams, create_ams_response, deploy_to_perun
 
 # Setup logger
 log = logging.getLogger(__name__)
@@ -215,36 +217,74 @@ def deploy_to_cas(registry_message, cas_agent):
     return response, str(external_id), client_id
 
 
-def process_data(messages, cas_url, username, password):
+def process_data(messages, cas_agent, perun_client_api):
     deployer_name = ""
     # messages to be published
     pub_messages = []
-    # Create Cas agent
-    cas_agent = CasClientApi(cas_url, username, password)
     for msg in messages:
         log.debug("Message from ams: " + str(msg))
+
+        # Copy message for deployment to perun.
+        if perun_client_api:
+            perun_msg = deepcopy(msg)
+
+        proxy_deploy_success = msg.get("proxy_deploy_success", False)
+
         # Remove rciam service id to make request to Cas
         service_id = msg.pop("id")
         external_id = ""
         client_id = ""
+        if not proxy_deploy_success:
+            # Service not deployed to proxy yet proceed with deployment
+            try:
+                response, external_id, client_id = deploy_to_cas(msg, cas_agent)
+                log.info("Message received from Cas: " + str(response))
+                if response["status"] == 200 or response["status"] != 201 or response["status"] != 204:
+                    proxy_deploy_success = True
+            except InterruptedError as e:
+                log.critical(f"Exception catch, return error to ams. Exception {e}")
+                ams_message = create_ams_response(
+                    {"status": 0, "error": f"An error occurred while calling Cas."},
+                    service_id,
+                    deployer_name,
+                    external_id,
+                    client_id,
+                    proxy_deploy_success
+                )
+                pub_messages.append({"attributes": {}, "data": ams_message})
+                return pub_messages
+        else:
+            # Service already deployed to proxy
+            response = {"status": 200}
         try:
-            response, external_id, client_id = deploy_to_cas(msg, cas_agent)
-            log.info("Message received from Cas: " + str(response))
+            if perun_client_api and (
+                    response["status"] == 200 or response["status"] != 201 or response["status"] != 204):
+                # Service deployed to proxy successfully proceed with deployment to perun.
+                if client_id:
+                    perun_msg["client_id"] = client_id
+                perun_deploy_success = deploy_to_perun(perun_msg, perun_client_api)
+                if not perun_deploy_success:
+                    response["status"] = 0
+                    response["error"] = "Deployment to perun failed."
+
+            # Deployment completed without exceptions, create response message
             ams_message = create_ams_response(
                 response,
                 service_id,
                 deployer_name,
                 external_id,
                 client_id,
+                proxy_deploy_success,
             )
         except Exception as e:
             log.critical(f"Exception catch, return error to ams. Exception {e}")
             ams_message = create_ams_response(
-                {"status": 0, "error": f"An error occurred while calling Cas. Error: {e}"},
+                {"status": 0, "error": f"An error occurred while calling Perun."},
                 service_id,
                 deployer_name,
                 external_id,
                 client_id,
+                proxy_deploy_success
             )
         pub_messages.append({"attributes": {}, "data": ams_message})
     return pub_messages
@@ -273,6 +313,12 @@ if __name__ == "__main__":
     log.info("Init ams agent")
     ams = PullPublish(config["cas"]["ams"])
 
+    perun_client_api = None
+    if "perun" in config["cas"]:
+        perun_client_api = PerunClientApi(config["cas"]["perun"])
+
+    cas_agent = CasClientApi(config["cas"]["cas_url"], config["cas"]["username"], config["cas"]["password"])
+
     # Get messages
     while True:
         log.info("Pull messages from ams")
@@ -284,7 +330,7 @@ if __name__ == "__main__":
             cas_url = config["cas"]["cas_url"]
 
             ams.ack(ids)
-            responses = process_data(messages, cas_url, username, password)
+            responses = process_data(messages, cas_agent, perun_client_api)
             publish_ams(responses, ams, log)
         time.sleep(config["cas"]["ams"]["poll_interval"])
     log.info("Exit script")
