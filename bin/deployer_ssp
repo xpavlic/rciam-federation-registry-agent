@@ -5,11 +5,14 @@ import json
 import logging
 import subprocess
 import time
+from copy import deepcopy
+from urllib.request import proxy_bypass
 
 import requests
+from Perun.PerunClientApi import PerunClientApi
 
 from ServiceRegistryAms.PullPublish import PullPublish
-from Utils.common import create_ams_response, get_log_conf
+from Utils.common import create_ams_response, get_log_conf, deploy_to_perun
 
 log = logging.getLogger(__name__)
 
@@ -118,12 +121,14 @@ def call_ssp_syncer(ssp_url, metadata_key, request_timeout, cron_tag):
         return {"status": response.status_code, "response": repr(response)}
 
 
-def publish_ams(ams_agent, response, messages, deployer_name):
+def publish_ams(ams_agent, response, messages, deployer_name, proxy_deploy_success):
     log.info("Publish message to ams")
     pub_messages = []
     for message in messages:
         try:
-            msg = create_ams_response(response, message["id"], deployer_name, "", "")
+            msg = create_ams_response(
+                response, message["id"], deployer_name, "", "", proxy_deploy_success
+            )
         except:
             log.critical("Exception catch, return error to ams")
             msg = create_ams_response(
@@ -132,6 +137,7 @@ def publish_ams(ams_agent, response, messages, deployer_name):
                 deployer_name,
                 "",
                 "",
+                proxy_deploy_success,
             )
         pub_messages.append({"attributes": {}, "data": msg})
     log.debug("Messages published to ams: " + str(pub_messages))
@@ -156,6 +162,10 @@ if __name__ == "__main__":
     log.info("Init ams agent")
     ams = PullPublish(config["ssp"]["ams"])
 
+    perun_client_api = None
+    if "perun" in config["ssp"]:
+        perun_client_api = PerunClientApi(config["ssp"]["perun"])
+
     services_json = get_services_from_conf(config["ssp"]["metadata_conf_file"])
     # Get messages
     while True:
@@ -173,7 +183,23 @@ if __name__ == "__main__":
                 config["ssp"]["request_timeout"],
                 config["ssp"]["cron_tag"],
             )
+
+            proxy_deploy_success = False
+            if response["status"] in [200, 201, 204]:
+                proxy_deploy_success = True
+                if perun_client_api:
+                    for msg in messages:
+                        try:
+                            if msg.get("deployment_type") and msg.get("protocol") == "saml":
+                                deploy_success = deploy_to_perun(deepcopy(msg), perun_client_api)
+                                if not deploy_success:
+                                    response["status"] = 0
+                                    response["error"] = "Deployment to Perun failed."
+                        except Exception as e:
+                            log.critical(f"Perun deployment exception: {e}")
+                            response = {"status": 0, "error": "Deployment to Perun failed."}
+
             log.info("Message received from SSP: " + str(response))
-            publish_ams(ams, response, messages, config["ssp"]["ams"]["deployer_name"])
+            publish_ams(ams, response, messages, config["ssp"]["ams"]["deployer_name"], proxy_deploy_success)
         time.sleep(config["ssp"]["ams"]["poll_interval"])
     log.info("Exit script")

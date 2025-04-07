@@ -5,13 +5,14 @@ import json
 import logging
 import time
 
+from Perun.PerunClientApi import PerunClientApi
+
 from Keycloak.KeycloakClientApi import KeycloakClientApi
 from ServiceRegistryAms.PullPublish import PullPublish
 from Utils.common import (
-    create_ams_response,
     get_keycloak_issuer,
     get_log_conf,
-    publish_ams,
+    publish_ams, process_data_generic,
 )
 from Utils.oauth import client_credentials_grant, refresh_token_grant
 
@@ -158,35 +159,19 @@ def format_keycloak_msg(msg, realm_default_client_scopes, keycloak_config):
 #    - messages, the new incoming messages in json
 #    - access_token
 #    - keycloak_config, configuration file for Keycloak
-def process_data(messages, access_token, keycloak_config):
-    auth_server = keycloak_config["auth_server"]
-    realm = keycloak_config["realm"]
-    deployer_name = ""
-    # messages to be published
-    pub_messages = []
-    # Create Keycloak agent
-    keycloak_agent = KeycloakClientApi(auth_server, realm, access_token)
-    for msg in messages:
-        log.debug("Message from ams: " + str(msg))
-        # Remove rciam service id to make request to Keycloak
-        service_id = msg.pop("id")
-        external_id = ""
-        client_id = ""
-        try:
-            response, external_id, client_id = deploy_to_keycloak(msg, keycloak_agent, keycloak_config)
-            log.info("Message received from Keycloak: " + str(response))
-            ams_message = create_ams_response(response, service_id, deployer_name, external_id, client_id)
-        except:
-            log.critical("Exception catch, return error to ams")
-            ams_message = create_ams_response(
-                {"status": 0, "error": "An error occurred while calling Keycloak"},
-                service_id,
-                deployer_name,
-                external_id,
-                client_id,
-            )
-        pub_messages.append({"attributes": {}, "data": ams_message})
-    return pub_messages
+def process_data(messages, access_token, keycloak_config, perun_client_api=None):
+    keycloak_agent = KeycloakClientApi(keycloak_config["auth_server"], keycloak_config["realm"], access_token)
+
+    def deploy_func(msg):
+        return deploy_to_keycloak(msg, keycloak_agent, keycloak_config)
+
+    return process_data_generic(
+        messages,
+        deploy_func,
+        "Keycloak",
+        log,
+        perun_client_api
+    )
 
 
 # Create the optional client scopes of the client
@@ -365,6 +350,10 @@ if __name__ == "__main__":
     log.info("Init ams agent")
     ams = PullPublish(config["keycloak"]["ams"])
 
+    perun_client_api = None
+    if "perun" in config["keycloak"]:
+        perun_client_api = PerunClientApi(config["keycloak"]["perun"])
+
     # Get messages
     while True:
         log.info("Pull messages from ams")
@@ -386,7 +375,7 @@ if __name__ == "__main__":
                     config["keycloak"]["client_secret"],
                 )
             ams.ack(ids)
-            responses = process_data(messages, access_token, config["keycloak"])
+            responses = process_data(messages, access_token, config["keycloak"], perun_client_api)
             publish_ams(responses, ams, log)
         time.sleep(config["keycloak"]["ams"]["poll_interval"])
     log.info("Exit script")

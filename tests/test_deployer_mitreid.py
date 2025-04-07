@@ -151,6 +151,7 @@ class TestDeployerMitreid(unittest.TestCase):
                     "attributes": {},
                     "data": {
                         "id": "12",
+                        'proxy_deploy_success': False,
                         "status_code": 0,
                         "state": "error",
                         "error_description": "An error occurred while calling mitreId",

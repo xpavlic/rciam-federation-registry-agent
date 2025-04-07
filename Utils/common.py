@@ -1,5 +1,6 @@
 import logging
 import logging.config
+from copy import deepcopy
 
 import requests
 
@@ -142,3 +143,74 @@ def deploy_to_perun(perun_message, perun_client_api):
     elif deployment_type == "edit":
         success = perun_client_api.update_service_in_perun(perun_message)
     return success
+
+
+def process_data_generic(messages, deploy_to_proxy_func, proxy_type, log, perun_client_api=None):
+    # messages to be published
+    pub_messages = []
+    deployer_name = ""
+
+    for msg in messages:
+        log.debug(f"Message from AMS: {msg}")
+
+        # Copy message for deployment to perun.
+        perun_msg = deepcopy(msg) if perun_client_api else None
+        proxy_deploy_success = msg.get("proxy_deploy_success", False)
+
+        # Remove rciam service id to make request to Cas
+        service_id = msg.pop("id")
+        external_id = ""
+        client_id = ""
+        response = {"status": 200}
+
+        if not proxy_deploy_success:
+            # Service not deployed to proxy yet proceed with deployment
+            try:
+                response, external_id, client_id = deploy_to_proxy_func(msg)
+                log.info(f"Message received from {proxy_type}: {response}")
+                if response["status"] in [200, 201, 204]:
+                    proxy_deploy_success = True
+            except Exception as e:
+                log.critical(
+                    f"Exception catch when calling {proxy_type} deployment, return error to ams. Exception {e}")
+                ams_message = create_ams_response(
+                    {"status": 0, "error": f"An error occurred while calling {proxy_type}"},
+                    service_id,
+                    deployer_name,
+                    external_id,
+                    client_id,
+                    proxy_deploy_success
+                )
+                pub_messages.append({"attributes": {}, "data": ams_message})
+                return pub_messages
+        try:
+            if perun_client_api and response["status"] in [200, 201, 204]:
+                # Service deployed to proxy successfully proceed with deployment to perun.
+                if client_id:
+                    perun_msg["client_id"] = client_id
+                if not deploy_to_perun(perun_msg, perun_client_api):
+                    response["status"] = 0
+                    response["error"] = "Deployment to Perun failed"
+
+            # Deployment completed without exceptions, create response message
+            ams_message = create_ams_response(
+                response,
+                service_id,
+                deployer_name,
+                external_id,
+                client_id,
+                proxy_deploy_success
+            )
+        except Exception as e:
+            log.critical(f"Exception catch when calling Perun deployment, return error to ams. Exception {e}")
+            ams_message = create_ams_response(
+                {"status": 0, "error": "An error occurred while calling Perun"},
+                service_id,
+                deployer_name,
+                external_id,
+                client_id,
+                proxy_deploy_success
+            )
+
+        pub_messages.append({"attributes": {}, "data": ams_message})
+    return pub_messages

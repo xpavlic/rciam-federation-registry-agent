@@ -6,9 +6,11 @@ import logging
 import time
 from datetime import datetime
 
+from Perun.PerunClientApi import PerunClientApi
+
 from MitreidConnect.MitreidClientApi import mitreidClientApi
 from ServiceRegistryAms.PullPublish import PullPublish
-from Utils.common import create_ams_response, get_log_conf, publish_ams
+from Utils.common import get_log_conf, publish_ams, process_data_generic
 from Utils.oauth import refresh_token_grant
 
 # Setup logger
@@ -74,29 +76,19 @@ def format_mitreid_msg(msg, deployment_type):
 #    - issuer_url, the url of the issuer
 #    - access_token
 #    - deployer_name
-def update_data(messages, issuer_url, access_token, deployer_name):
-    pub_messages = []  # messages to be published
-    mitreid_agent = mitreidClientApi(issuer_url, access_token)  # Create mitreid agent
-    for msg in messages:
-        log.debug("Message from ams: " + str(msg))
-        service_id = msg.pop("id")  # Remove rciam service id to make request to mitreId
-        external_id = ""
-        client_id = ""
-        try:
-            response, external_id, client_id = call_mitreid(msg, mitreid_agent)
-            log.info("Message received from mitreId: " + str(response))
-            ams_message = create_ams_response(response, service_id, deployer_name, external_id, client_id)
-        except:
-            log.critical("Exception catch, return error to ams")
-            ams_message = create_ams_response(
-                {"status": 0, "error": "An error occurred while calling mitreId"},
-                service_id,
-                deployer_name,
-                external_id,
-                client_id,
-            )
-        pub_messages.append({"attributes": {}, "data": ams_message})
-    return pub_messages
+def update_data(messages, issuer_url, access_token, perun_client_api=None):
+    mitreid_agent = mitreidClientApi(issuer_url, access_token)
+
+    def deploy_func(msg):
+        return call_mitreid(msg, mitreid_agent)
+
+    return process_data_generic(
+        messages,
+        deploy_func,
+        "mitreId",
+        log,
+        perun_client_api
+    )
 
 
 # Calls mitreid depending on the deployment type provided.
@@ -148,6 +140,10 @@ if __name__ == "__main__":
     log.info("Init ams agent")
     ams = PullPublish(config["mitreid"]["ams"])
 
+    perun_client_api = None
+    if "perun" in config["mitreid"]:
+        perun_client_api = PerunClientApi(config["mitreid"]["perun"])
+
     # Get messages
     while True:
         log.info("Pull messages from ams")
@@ -162,7 +158,7 @@ if __name__ == "__main__":
                 config["mitreid"]["client_secret"],
             )
             ams.ack(ids)
-            responses = update_data(messages, config["mitreid"]["issuer"], access_token, "")
+            responses = update_data(messages, config["mitreid"]["issuer"], access_token, perun_client_api)
             publish_ams(responses, ams, log)
         time.sleep(config["mitreid"]["ams"]["poll_interval"])
     log.info("Exit script")
