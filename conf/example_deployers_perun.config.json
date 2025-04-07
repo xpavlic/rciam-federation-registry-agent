@@ -1,0 +1,83 @@
+{
+  "cas": {
+    "cas_url": "https://example.host.com/cas",
+    "username": "admin",
+    "password": "password",
+    "ams": {
+      "host": "example.host.com",
+      "project": "ams-project-name-cas",
+      "pull_topic": "ams-topic-cas",
+      "pull_sub": "ams-sub-cas",
+      "token": "ams-token-cas",
+      "pub_topic": "ams-publish-topic-cas",
+      "poll_interval": 1
+    },
+    "perun": {
+      "api_url": "https://example.host.com/ba/rpc/json",
+      "username": "username",
+      "password": "password",
+      "ext_source_name": "https://example.com/idp/",
+      "sp_managers_vo_id": 3898,
+      "sp_managers_parent_group_id": 13110,
+      "id_attribute": {
+        "id": 3560,
+        "type": "java.lang.Integer",
+        "attribute": "urn:perun:facility:attribute-def:def:serviceIdInMitre"
+      },
+      "managers_group_attribute": {
+        "id": 3613,
+        "type": "java.lang.Integer",
+        "attribute": "urn:perun:facility:attribute-def:def:rpManagersGroupId"
+      },
+      "properties_mapping": {
+        "client_id": [
+          {
+            "id": 3624,
+            "type": "java.lang.String",
+            "attribute": "urn:perun:facility:attribute-def:def:rpIdentifier",
+            "unique": true
+          },
+          {
+            "id": 3482,
+            "type": "java.lang.String",
+            "attribute": "urn:perun:facility:attribute-def:def:OIDCClientID",
+            "unique": true
+          }
+        ],
+        "entity_id": [
+          {
+            "id": 3624,
+            "type": "java.lang.String",
+            "attribute": "urn:perun:facility:attribute-def:def:rpIdentifier",
+            "unique": true
+          },
+          {
+            "id": 3395,
+            "type": "java.lang.String",
+            "attribute": "urn:perun:facility:attribute-def:def:entityID",
+            "unique": true
+          }
+        ],
+        "integration_environment": {
+          "id": 3515,
+          "type": "java.lang.Boolean",
+          "attribute": "urn:perun:facility:attribute-def:def:isTestSp",
+          "value_mapping": {
+            "demo": true,
+            "development": true,
+            "production": false
+          }
+        }
+      },
+      "static_attributes": [
+        {
+          "id": 3578,
+          "type": "java.lang.String",
+          "attribute": "urn:perun:facility:attribute-def:def:masterProxyIdentifier",
+          "value": "https://login.cesnet.cz/idp/"
+        }
+      ]
+    }
+  },
+  "log_conf": "conf/logger.conf"
+}

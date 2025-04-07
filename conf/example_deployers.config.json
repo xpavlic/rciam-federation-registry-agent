@@ -54,5 +54,19 @@
     "cron_url": "http://localhost/proxy/module.php/cron/cron.php",
     "cron_tag": "hourly",
     "request_timeout": 100
+  },
+  "cas": {
+    "cas_url": "https://example.host.com/cas",
+    "username": "admin",
+    "password": "password",
+    "ams": {
+      "host": "example.host.com",
+      "project": "ams-project-name-cas",
+      "pull_topic": "ams-topic-cas",
+      "pull_sub": "ams-sub-cas",
+      "token": "ams-token-cas",
+      "pub_topic": "ams-publish-topic-cas",
+      "poll_interval": 1
+    }
   }
 }
