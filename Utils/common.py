@@ -186,6 +186,7 @@ def process_data_generic(messages, deploy_to_proxy_func, proxy_type, log, perun_
         try:
             if perun_client_api and response["status"] in [200, 201, 204]:
                 # Service deployed to proxy successfully proceed with deployment to perun.
+                log.info("Service deployed to proxy successfully proceed with deployment to perun.")
                 if client_id:
                     perun_msg["client_id"] = client_id
                 if not deploy_to_perun(perun_msg, perun_client_api):

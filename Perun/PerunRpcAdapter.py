@@ -1,6 +1,9 @@
 import json
+import logging
 
 import requests
+
+log = logging.getLogger(__name__)
 
 
 class PerunConnectionException(Exception):
@@ -59,10 +62,10 @@ class PerunRpcAdapter:
                         return None
 
             except json.JSONDecodeError:
-                print("Cannot parse error message from JSON")
+                log.critical("Cannot parse error message from JSON")
                 raise PerunUnknownException(exception)
 
-        print(
+        log.critical(
             f"HTTP ERROR {response.status_code} URL {action_url} Content-Type: {content_type} response: {response.text}"
         )
         raise PerunUnknownException(exception)
@@ -120,7 +123,7 @@ class PerunRpcAdapter:
             body
         )
         if not perun_user:
-            print(
+            log.warning(
                 f"User with sub: {sub} and ext source {ext_source_name} not found in Perun"
             )
             return None
