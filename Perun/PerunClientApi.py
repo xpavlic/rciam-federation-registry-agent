@@ -83,12 +83,9 @@ class PerunClientApi(object):
                 continue
             attr_value = perun_message.get(serv_property)
 
-            if isinstance(attr_mapping, list):
-                # Mapping property to multiple attributes
-                for item in attr_mapping:
-                    perun_attributes.append(self.build_perun_attribute(item, attr_value))
-            else:
-                perun_attributes.append(self.build_perun_attribute(attr_mapping, attr_value))
+            # attr_mapping is always array of information about attributes to map property to
+            for attribute_info in attr_mapping:
+                perun_attributes.append(self.build_perun_attribute(attribute_info, attr_value))
 
         if self.static_attributes:
             perun_attributes.extend(self.build_perun_static_attributes())

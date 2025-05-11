@@ -207,16 +207,18 @@ configuration options are described below.
             "unique": true
           }
         ],
-        "integration_environment": {
-          "id": 3515,
-          "type": "java.lang.Boolean",
-          "attribute": "urn:perun:facility:attribute-def:def:isTestSp",
-          "value_mapping": {
-            "demo": true,
-            "development": true,
-            "production": false
+        "integration_environment": [
+          {
+            "id": 3515,
+            "type": "java.lang.Boolean",
+            "attribute": "urn:perun:facility:attribute-def:def:isTestSp",
+            "value_mapping": {
+              "demo": true,
+              "development": true,
+              "production": false
+            }
           }
-        }
+        ]
       },
       "static_attributes": [
         {
