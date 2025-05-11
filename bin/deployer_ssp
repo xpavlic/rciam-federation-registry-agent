@@ -145,6 +145,9 @@ def publish_ams(ams_agent, response, messages, deployer_name, proxy_deploy_succe
 
 
 if __name__ == "__main__":
+    """
+    Updated by Jan Pavlíček (xpavli95@stud.fit.vutbr.cz) to support service deployment to Perun IDM
+    """
     # Get config path from arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", required=True, type=str, help="Script configuration file path")

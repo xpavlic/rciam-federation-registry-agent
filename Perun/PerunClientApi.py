@@ -1,3 +1,7 @@
+"""
+@AUTHOR Jan Pavlíček (xpavli95@stud.fit.vutbr.cz)
+"""
+
 import logging
 
 from Perun.PerunRpcAdapter import PerunRpcAdapter, PerunUnknownException, PerunConnectionException
@@ -11,6 +15,9 @@ class PerunProcessingException(Exception):
 
 
 class PerunClientApi(object):
+    """
+    Class providing high level methods on top of Perun RPC adapter
+    """
     ATTRIBUTE_BEAN_NAME = "Attribute"
 
     def __init__(self, config):
@@ -31,6 +38,9 @@ class PerunClientApi(object):
         self.perun_rpc_adapter = PerunRpcAdapter(api_url, username, password)
 
     def set_user_as_service_manager(self, facility_id, admins_group_id, user_id):
+        """
+        Method for linking managers group to the facility and setting user as a member of this group.
+        """
         if not self.perun_rpc_adapter.add_group_as_admins(facility_id, admins_group_id):
             log.warning(
                 f"Could not set group {admins_group_id} as managers for facility {facility_id}"
@@ -45,12 +55,18 @@ class PerunClientApi(object):
         return self.perun_rpc_adapter.add_member_to_group(admins_group_id, member_id)
 
     def get_perun_attr_name_namespace(self, perun_attr):
+        """
+        Method splitting perun attribute to namespace and friendly name
+        """
         name_parts = perun_attr.split(":")
         namespace = ":".join(name_parts[:5])
         friendly_name = ":".join(name_parts[5:])
         return friendly_name, namespace
 
     def build_perun_attribute(self, perun_attr_config, value):
+        """
+        Method building perun attribute by provided configuration
+        """
         attr_name, attr_namespace = self.get_perun_attr_name_namespace(perun_attr_config["attribute"])
 
         value_mapping = perun_attr_config.get("value_mapping")
@@ -71,12 +87,19 @@ class PerunClientApi(object):
         return attribute
 
     def build_perun_static_attributes(self):
+        """
+        Method for building perun static attributes by configuration. Attributes that have same value
+        across all facilities
+        """
         perun_static_attributes = []
         for static_attribute in self.static_attributes:
             perun_static_attributes.append(self.build_perun_attribute(static_attribute, static_attribute["value"]))
         return perun_static_attributes
 
     def build_perun_attributes(self, perun_message):
+        """
+        Method for building perun attributes from service properties by mappers from configuration.
+        """
         perun_attributes = [self.build_perun_attribute(self.id_perun_attribute, perun_message["id"])]
         for serv_property, attr_mapping in self.properties_mapping.items():
             if serv_property not in perun_message:
@@ -93,6 +116,9 @@ class PerunClientApi(object):
         return perun_attributes
 
     def delete_admins_group(self, facility_id):
+        """
+        Method for deleting admin group from facility
+        """
         try:
             admins_group_id = self.perun_rpc_adapter.get_facility_attribute_value(
                 facility_id, self.managers_group_perun_attribute["attribute"]
@@ -107,12 +133,20 @@ class PerunClientApi(object):
             raise PerunProcessingException("Perun exception caught when deleting admins group", e)
 
     def delete_facility(self, facility_id):
+        """
+        Method deleting facility from Perun IDM
+        """
         try:
             self.perun_rpc_adapter.delete_facility(facility_id)
         except Exception as e:
             raise PerunProcessingException("Perun exception caught when deleting facility", e)
 
     def register_new_service_in_perun(self, perun_message):
+        """
+        Method for registering new service in Perun IDM. It creates a new facility, managers group, assign requester as
+        facility manager and filling selected service properties as facility attributes. If any task fails, the previous
+        changes are rolled back.
+        """
         service_name = perun_message["service_name"]
         service_identifier = ""
         if perun_message["protocol"] == "saml":
@@ -173,6 +207,11 @@ class PerunClientApi(object):
         return True
 
     def update_service_in_perun(self, perun_message):
+        """
+        Method for updating service in Perun IDM. It finds facility by corresponding facility attribute mapped to the
+        service id. It updates facility name and description together with selected
+        service properties mapped to the facility attributes.
+        """
         try:
             facilities = self.perun_rpc_adapter.get_facilities_by_attributes(
                 self.id_perun_attribute["attribute"], perun_message["id"]
@@ -207,6 +246,10 @@ class PerunClientApi(object):
         return True
 
     def delete_service_in_perun(self, perun_message):
+        """
+        Method deletes the facility in Perun IDM. It finds facility by corresponding facility attribute mapped to the
+        service id and deletes it together with its managers group.
+        """
         try:
             facilities = self.perun_rpc_adapter.get_facilities_by_attributes(
                 self.id_perun_attribute["attribute"], perun_message["id"]

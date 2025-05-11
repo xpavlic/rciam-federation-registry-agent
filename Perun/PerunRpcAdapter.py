@@ -1,3 +1,7 @@
+"""
+@AUTHOR Jan Pavlíček (xpavli95@stud.fit.vutbr.cz)
+"""
+
 import json
 import logging
 
@@ -15,6 +19,9 @@ class PerunUnknownException(Exception):
 
 
 class PerunRpcAdapter:
+    """
+    Class for communication with the Perun Rpc
+    """
     FACILITIES_MANAGER = "facilitiesManager"
     GROUPS_MANAGER = "groupsManager"
     MEMBERS_MANAGER = "membersManager"
@@ -44,6 +51,9 @@ class PerunRpcAdapter:
         self.password = password
 
     def handle_http_client_error_exception(self, exception, action_url, response):
+        """
+        Method for handling errors received from Perun IDM. It filters known Perun exceptions and raises unknown ones.
+        """
         content_type = response.headers.get("Content-Type", "")
 
         if "json" in content_type.lower():
@@ -71,6 +81,9 @@ class PerunRpcAdapter:
         raise PerunUnknownException(exception)
 
     def call_perun_api(self, manager, method, body):
+        """
+        Method for calling Perun RPC API
+        """
         action_url = f"{self.api_url}/{manager}/{method}"
 
         try:
@@ -86,6 +99,9 @@ class PerunRpcAdapter:
             raise PerunConnectionException(e)
 
     def create_facility_in_perun(self, facility_name, facility_description):
+        """
+        Method creates facility in Perun with facility name and description
+        """
         facility = {
             "id": None,
             "name": facility_name,
@@ -95,7 +111,10 @@ class PerunRpcAdapter:
         body = {self.PARAM_FACILITY: facility}
         return self.call_perun_api(self.FACILITIES_MANAGER, "createFacility", body)
 
-    def create_admins_group(self, facility_name, sp_managers_vo_id, sp_managers_parent_group_id):
+    def create_admins_group(self, facility_name, sp_managers_vo_id, sp_managers_parent_group_id=None):
+        """
+        Method creates admin group in Perun within desired VO and optionally as subgroup of other group.
+        """
         group = {
             "id": None,
             "shortName": facility_name,
@@ -113,6 +132,9 @@ class PerunRpcAdapter:
         return self.call_perun_api(self.GROUPS_MANAGER, "createGroup", body)
 
     def get_user_id(self, sub, ext_source_name):
+        """
+        Method finds a user by its unique ID and Identity providers identifier. It returns the id of the user.
+        """
         body = {
             self.PARAM_EXT_SOURCE_NAME: ext_source_name,
             self.PARAM_EXT_LOGIN: sub
@@ -130,6 +152,9 @@ class PerunRpcAdapter:
         return perun_user.get("id")
 
     def add_group_as_admins(self, facility_id, admins_group_id):
+        """
+        Method for setting group as managers group of the facility.
+        """
         body = {
             self.PARAM_FACILITY: facility_id,
             self.PARAM_AUTHORIZED_GROUP: admins_group_id
@@ -138,6 +163,9 @@ class PerunRpcAdapter:
         return result is None
 
     def get_member_id_by_user(self, vo_id, user_id):
+        """
+        Method for getting member id of user within the VO
+        """
         body = {self.PARAM_VO: vo_id, self.PARAM_USER: user_id}
         result = self.call_perun_api(self.MEMBERS_MANAGER, "getMemberByUser", body)
         if result is None:
@@ -145,11 +173,17 @@ class PerunRpcAdapter:
         return result.get("id")
 
     def add_member_to_group(self, group_id, member_id):
+        """
+        Method for adding VO member to group
+        """
         body = {self.PARAM_GROUP: group_id, self.PARAM_MEMBER: member_id}
         result = self.call_perun_api(self.GROUPS_MANAGER, "addMember", body)
         return result is None
 
     def set_facility_attributes(self, facility_id, perun_attributes):
+        """
+        Method for setting facility attributes
+        """
         body = {
             self.PARAM_FACILITY: facility_id,
             self.PARAM_ATTRIBUTES: perun_attributes
@@ -158,6 +192,9 @@ class PerunRpcAdapter:
         return result is None
 
     def delete_facility(self, facility_id):
+        """
+        Method for deleting facility
+        """
         body = {
             self.PARAM_FACILITY: facility_id,
             self.PARAM_FORCE: True
@@ -166,6 +203,7 @@ class PerunRpcAdapter:
         return result is None
 
     def delete_group(self, group_id):
+        """Method for deleting group"""
         body = {
             self.PARAM_GROUP: group_id,
             self.PARAM_FORCE: True
@@ -174,6 +212,9 @@ class PerunRpcAdapter:
         return result is None
 
     def get_facility_attribute_value(self, facility_id, attribute_urn):
+        """
+        Method for getting facility attribute value
+        """
         body = {
             self.PARAM_FACILITY: facility_id,
             self.PARAM_ATTRIBUTE_NAME: attribute_urn
@@ -182,6 +223,9 @@ class PerunRpcAdapter:
         return result.get("value")
 
     def get_facilities_by_attributes(self, attribute_name, attribute_value):
+        """
+        Method for getting all facilities with the attribute set to specific value
+        """
         body = {
             self.PARAM_ATTRIBUTE_NAME: attribute_name,
             self.PARAM_ATTRIBUTE_VALUE: attribute_value
@@ -190,6 +234,9 @@ class PerunRpcAdapter:
         return result
 
     def update_facility(self, facility):
+        """
+        Method for updating facility
+        """
         body = {
             self.PARAM_FACILITY: facility,
         }

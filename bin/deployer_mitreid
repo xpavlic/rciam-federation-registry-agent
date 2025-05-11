@@ -77,6 +77,9 @@ def format_mitreid_msg(msg, deployment_type):
 #    - access_token
 #    - deployer_name
 def update_data(messages, issuer_url, access_token, perun_client_api=None):
+    """
+    Updated by Jan Pavlíček (xpavli95@stud.fit.vutbr.cz) to use generic data processing function
+    """
     mitreid_agent = mitreidClientApi(issuer_url, access_token)
 
     def deploy_func(msg):
@@ -140,6 +143,9 @@ if __name__ == "__main__":
     log.info("Init ams agent")
     ams = PullPublish(config["mitreid"]["ams"])
 
+    """
+    Updated by Jan Pavlíček (xpavli95@stud.fit.vutbr.cz) to support service deployment to Perun IDM
+    """
     perun_client_api = None
     if "perun" in config["mitreid"]:
         perun_client_api = PerunClientApi(config["mitreid"]["perun"])

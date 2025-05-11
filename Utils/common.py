@@ -18,6 +18,10 @@ def get_log_conf(log_config_file=None):
 # create_ams_response creates a json object with the result of the mitreId api call
 # that is readable from the rciam-federation-registry
 def create_ams_response(response, service_id, deployer_name, external_id, client_id, proxy_deploy_success):
+    """
+    Updated by Jan Pavlíček (xpavli95@stud.fit.vutbr.cz) to work with proxy_deploy_success and added success HTTP
+    status 204
+    """
     new_msg = {}
     new_msg["id"] = service_id
     new_msg["status_code"] = response["status"]
@@ -57,6 +61,8 @@ def get_keycloak_issuer(config):
 
 
 """
+Refactored by Jan Pavlíček (xpavli95@stud.fit.vutbr.cz) from deployer agents
+
 Wrapper function for Python requests
 
 Parameters:
@@ -127,6 +133,9 @@ def http_request(method, url, header, data=None, auth=None, timeout=5):
 # - the messages to be published
 # - the ams agent to handle the operation
 def publish_ams(pub_messages, ams_agent, log):
+    """
+    Refactored by Jan Pavlíček (xpavli95@stud.fit.vutbr.cz) from deployer agents
+    """
     if len(pub_messages) > 0:
         log.info("Publish messaged to ams")
         log.debug("Messages published to ams: " + str(pub_messages))
@@ -134,6 +143,10 @@ def publish_ams(pub_messages, ams_agent, log):
 
 
 def deploy_to_perun(perun_message, perun_client_api):
+    """
+    @Author Jan Pavlíček (xpavli95@stud.fit.vutbr.cz)
+    Method invoking appropriate deployment methods for service deployment to Perun IDM
+    """
     deployment_type = perun_message["deployment_type"]
     success = False
     if deployment_type == "create":
@@ -146,6 +159,13 @@ def deploy_to_perun(perun_message, perun_client_api):
 
 
 def process_data_generic(messages, deploy_to_proxy_func, proxy_type, log, perun_client_api=None):
+    """
+    @Author Jan Pavlíček (xpavli95@stud.fit.vutbr.cz)
+    Generic method for managing the service deployment to the proxy/IDP and Perun IDM. It is using the
+    deployment_to_proxy_func for the deployment to specific proxy/IDP. It validates the response and optionally
+    performs the deployment to the Perun IDM. After performing the deployment tasks, it builds the deployment response
+    message that is then propagated to the Federation registry.
+    """
     # messages to be published
     pub_messages = []
     deployer_name = ""

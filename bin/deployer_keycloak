@@ -160,6 +160,9 @@ def format_keycloak_msg(msg, realm_default_client_scopes, keycloak_config):
 #    - access_token
 #    - keycloak_config, configuration file for Keycloak
 def process_data(messages, access_token, keycloak_config, perun_client_api=None):
+    """
+    Updated by Jan Pavlíček (xpavli95@stud.fit.vutbr.cz) to use generic data processing function
+    """
     keycloak_agent = KeycloakClientApi(keycloak_config["auth_server"], keycloak_config["realm"], access_token)
 
     def deploy_func(msg):
@@ -350,6 +353,9 @@ if __name__ == "__main__":
     log.info("Init ams agent")
     ams = PullPublish(config["keycloak"]["ams"])
 
+    """
+    Updated by Jan Pavlíček (xpavli95@stud.fit.vutbr.cz) to support service deployment to Perun IDM
+    """
     perun_client_api = None
     if "perun" in config["keycloak"]:
         perun_client_api = PerunClientApi(config["keycloak"]["perun"])

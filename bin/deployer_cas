@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+"""
+@AUTHOR Jan Pavlíček (xpavli95@stud.fit.vutbr.cz)
+"""
+
 import argparse
 import json
 import logging
@@ -16,6 +20,10 @@ log = logging.getLogger(__name__)
 
 
 def build_response_types_from_grant_types(grant_types):
+    """
+    Function for building OIDC response types
+    @grant_types is a list of OIDC grant types
+    """
     response_types = []
     if "authorization_code" in grant_types:
         response_types.append("code")
@@ -31,15 +39,24 @@ def build_response_types_from_grant_types(grant_types):
 
 
 def build_service_id_from_redirect_uris(redirect_uris):
+    """
+    Function for building CAS service id from redirect uris
+    """
     pattern = "^(" + "|".join(redirect_uris) + ")$"
     return pattern
 
 
 def generate_client_id():
+    """
+    Function for generation OIDC client id
+    """
     return str(uuid.uuid4())
 
 
 def build_cas_msg_oidc(msg, new_msg):
+    """
+    Function that builds messages in format expected by Apereo CAS for OIDC services
+    """
     # No configurations for:
     #   token_endpoint_auth_signing_alg
     # Code challenge methods are always enabled for every CAS service
@@ -113,6 +130,9 @@ def build_cas_msg_oidc(msg, new_msg):
 
 
 def msg_add_cas_saml_attribute_policy(requested_attributes, new_msg):
+    """
+    Function for appending Apereo CAS message with attribute release policy
+    """
     if not requested_attributes:
         return
     attribute_mappings = {"@class": "java.util.TreeMap"}
@@ -137,6 +157,9 @@ def msg_add_cas_saml_attribute_policy(requested_attributes, new_msg):
 
 
 def build_cas_msg_saml(msg, new_msg):
+    """
+    Function that builds messages in format expected by Apereo CAS for SAML services
+    """
     new_msg["@class"] = "org.apereo.cas.support.saml.services.SamlRegisteredService"
     if "entity_id" in msg:
         new_msg["serviceId"] = msg.pop("entity_id")
@@ -147,6 +170,9 @@ def build_cas_msg_saml(msg, new_msg):
 
 
 def format_cas_msg(msg):
+    """
+    Function for building messages in format expected by Apereo CAS
+    """
     new_msg = {}
     if "service_name" in msg:
         new_msg["name"] = msg.pop("service_name")
@@ -191,6 +217,10 @@ def format_cas_msg(msg):
 
 
 def deploy_to_cas(registry_message, cas_agent):
+    """
+    Function responsible for calling of message transformation functions and calling Apereo CAS API for service
+    management
+    """
     deployment_type = registry_message["deployment_type"]
     cas_msg = format_cas_msg(registry_message)
     response = {}
@@ -217,6 +247,9 @@ def deploy_to_cas(registry_message, cas_agent):
 
 
 def process_data(messages, cas_agent, perun_client_api=None):
+    """
+    Function calling generic processing function controlling deployment to Apereo CAS and Perun IDM.
+    """
     def deploy_func(msg):
         return deploy_to_cas(msg, cas_agent)
 
