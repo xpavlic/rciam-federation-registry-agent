@@ -3,7 +3,7 @@ Description=Keycloak deployer service
 
 [Service]
 User=root
-ExecStart={{venv_path}/deployer_keycloak -c /etc/conf/deployer_keycloak.config 
+ExecStart={{venv_path}/deployer_keycloak.py -c /etc/conf/deployer_keycloak.config 
 Restart=always
 RestartSec=60s
 Type=simple

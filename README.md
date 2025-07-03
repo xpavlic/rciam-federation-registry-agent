@@ -11,10 +11,11 @@ API module named `Keycloak/` to communicate with the API of the Keycloak, an API
 with api of the Apereo CAS and an API module named `Perun/` to communicate with the API of the Perun.
 The main standalone scripts that are used to deploy updates to the third party services are under `bin/`:
 
-- `deployer_keycloak` for Keycloak
-- `deployer_mitreid` for MITREid
-- `deployer_ssp` for SimpleSAMLphp
-- `deployer_cas` for Apereo CAS
+- `deployer_keycloak.py` for Keycloak
+- `deployer_mitreid.py` for MITREid
+- `deployer_ssp.py` for SimpleSAMLphp
+- `deployer_cas.py` for Apereo CAS
+- `deployer_cas_rabbitmq.py` just as above but uses `RabbitMQ` instead of `AMS`. `pika` library is used for communication with RabbitMQ server.
 
 ## Installation
 
@@ -45,7 +46,7 @@ deployer_keycloak -c example_deployers.config.json
 deployer_mitreid requires the path of the config file as an argument
 
 ```bash
-deployer_mitreid -c example_deployers.config.json
+deployer_mitreid.py -c example_deployers.config.json
 ```
 
 ### deployer_ssp
@@ -53,15 +54,23 @@ deployer_mitreid -c example_deployers.config.json
 deployer_ssp requires the path of the config file as an argument
 
 ```bash
-deployer_ssp -c example_deployers.config.json
+deployer_ssp.py -c example_deployers.config.json
 ```
 
 ### deployer_cas
 
-deployer_ssp requires the path of the config file as an argument
+deployer_cas requires the path of the config file as an argument
 
 ```bash
-deployer_cas -c example_deployers.config.json
+deployer_cas.py -c example_deployers.config.json
+```
+
+### deployer_cas_rabbitmq
+
+deployer_cas_rabbitmq requires the path of the config file as an argument
+
+```bash
+deployer_cas_rabbitmq.py -c example_deployers.config.json
 ```
 
 ## Configuration
@@ -130,6 +139,14 @@ configuration options are described below.
       "token": "ams-token-cas",
       "pub_topic": "ams-publish-topic-cas",
       "poll_interval": 1
+    },
+    "rabbitmq": {
+      "host": "example.host.com",
+      "vhost": "rabbitmq-vhost",
+      "pub_queue": "results_queue",
+      "sub_queue": "deploying_cas_tasks_q",
+      "username": "theName-isThe",
+      "password": "superSecretPwd"
     }
   },
   "log_conf": "conf/logger.conf"
@@ -140,6 +157,8 @@ As shown above there are three main groups, namely Keycloak, MITREid, SSP and CA
 settings and service specific configuration values. The only global value is the `log_conf` path if you want to use the
 same logging configuration for both of the deployers. In case you need a different configuration for a deployer you can
 add log_conf in the scope of "MITREid" or "SSP" or "CAS".
+
+When using the `RabbitMQ` version of the CAS deployer, you can omit the `ams` scope entirely as it's not used. Just like that you can also omit the `rabbitmq` scope when `ams` is used.
 
 ### Configuration with sync to Perun IDM
 

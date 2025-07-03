@@ -24,7 +24,7 @@ setup(
     license="ASL 2.0",
     url="https://github.com/rciam/rciam-federation-registry-agent",
     packages=find_packages(),
-    scripts=["bin/deployer_ssp", "bin/deployer_mitreid", "bin/deployer_keycloak", "bin/deployer_cas"],
+    scripts=["bin/deployer_ssp.py", "bin/deployer_mitreid.py", "bin/deployer_keycloak.py", "bin/deployer_cas_rabbitmq.py", "bin/deployer_cas.py"],
     zip_safe=False,
     install_requires=install_requires,
     dependency_links=dependency_links,
@@ -37,5 +37,6 @@ setup(
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.12",
     ],
 )

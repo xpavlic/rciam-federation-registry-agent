@@ -5,7 +5,7 @@ Description=CAS deployer service
 
 [Service]
 User=root
-ExecStart={{venv_path}/deployer_cas -c /etc/conf/deployer_cas.config
+ExecStart={{venv_path}/deployer_cas.py -c /etc/conf/deployer_cas.config
 Restart=always
 RestartSec=60s
 Type=simple
