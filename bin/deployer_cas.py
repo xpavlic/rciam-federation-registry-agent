@@ -261,9 +261,10 @@ def process_data(messages, cas_agent, perun_client_api=None):
         perun_client_api
     )
 
-
-if __name__ == "__main__":
-    # Get config path from arguments
+def get_config_path_from_arguments()-> str:
+    """
+    Function for getting config path from arguments
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c",
@@ -272,15 +273,23 @@ if __name__ == "__main__":
         help="Configuration file location path"
     )
     args = parser.parse_args()
-    path = args.c
+    return args.c
+
+def set_log_config(configuration: dict):
+    """
+    Set log_conf from project arguments else use the global setting
+    """
+    if "log_conf" in configuration["cas"]:
+        get_log_conf(configuration["cas"]["log_conf"])
+    else:
+        get_log_conf(configuration["log_conf"])
+
+if __name__ == "__main__":
+    path = get_config_path_from_arguments()
     with open(path) as json_data_file:
         config = json.load(json_data_file)
 
-    # Get log_conf from project arguments else use the global setting
-    if "log_conf" in config["cas"]:
-        get_log_conf(config["cas"]["log_conf"])
-    else:
-        get_log_conf(config["log_conf"])
+    set_log_config(config)
 
     log.info("Init ams agent")
     ams = PullPublish(config["cas"]["ams"])

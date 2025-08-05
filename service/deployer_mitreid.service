@@ -3,7 +3,7 @@ Description=MitreId deployer service
 
 [Service]
 User=root
-ExecStart={{venv_path}/deployer_mitreid -c /etc/conf/deployer_mitreid.config 
+ExecStart={{venv_path}/deployer_mitreid.py -c /etc/conf/deployer_mitreid.config 
 Restart=always
 RestartSec=60s
 Type=simple
