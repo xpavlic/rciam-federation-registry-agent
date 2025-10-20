@@ -100,6 +100,7 @@ class CasClientApi:
         return http_request(
             "DELETE",
             url,
-            {},
+            header={},
+            data={},
             auth=(self.username, self.password)
         )
