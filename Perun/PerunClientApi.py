@@ -147,7 +147,7 @@ class PerunClientApi(object):
         facility manager and filling selected service properties as facility attributes. If any task fails, the previous
         changes are rolled back.
         """
-        service_name = perun_message["service_name"]
+        facility_name = perun_message["service_name"] + " (" + perun_message["id"] + ")"
         service_identifier = ""
         if perun_message["protocol"] == "saml":
             service_identifier = perun_message["entity_id"]
@@ -157,7 +157,7 @@ class PerunClientApi(object):
         perun_attributes = self.build_perun_attributes(perun_message)
 
         try:
-            facility = self.perun_rpc_adapter.create_facility_in_perun(service_name, service_identifier)
+            facility = self.perun_rpc_adapter.create_facility_in_perun(facility_name, service_identifier)
             if not facility or not facility.get("id") or not facility.get(
                     "name"
             ).strip():
@@ -170,7 +170,7 @@ class PerunClientApi(object):
 
         admins_group_id = None
         try:
-            admins_group = self.perun_rpc_adapter.create_admins_group(service_name, self.sp_managers_vo_id,
+            admins_group = self.perun_rpc_adapter.create_admins_group(facility_name, self.sp_managers_vo_id,
                                                                       self.sp_managers_parent_group_id)
             if not admins_group:
                 raise PerunProcessingException("Could not create admins group")
