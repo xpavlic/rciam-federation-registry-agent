@@ -135,25 +135,32 @@ def msg_add_cas_saml_attribute_policy(requested_attributes, new_msg):
     """
     if not requested_attributes:
         return
-    attribute_mappings = {"@class": "java.util.TreeMap"}
-    attribute_name_formats = {"@class": "java.util.HashMap"}
+
+    allowed_attributes = []
 
     for attribute in requested_attributes:
-        friendly_name = attribute["friendly_name"]
-        urn_name = attribute["name"]
+        friendly_name = attribute.get("friendly_name")
+        urn_name = attribute.get("name")
 
-        attribute_mappings[friendly_name] = urn_name
+        if urn_name:
+            allowed_attributes.append(urn_name)
+        elif friendly_name:
+            allowed_attributes.append(friendly_name)
 
-        attribute_name_formats[friendly_name] = attribute.get(
-            "name_format",
-            "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
-        )
+    allowed_attributes = list(set(allowed_attributes))
 
     new_msg["attributeReleasePolicy"] = {
-        "@class": "org.apereo.cas.services.ReturnMappedAttributeReleasePolicy",
-        "allowedAttributes": attribute_mappings
+        "@class": "org.apereo.cas.services.ChainingAttributeReleasePolicy",
+        "policies": [
+            "java.util.ArrayList",
+            [
+                {
+                    "@class": "org.apereo.cas.services.ReturnAllowedAttributeReleasePolicy",
+                    "allowedAttributes": ["java.util.ArrayList", allowed_attributes]
+                }
+            ]
+        ]
     }
-    new_msg["attributeNameFormats"] = attribute_name_formats
 
 
 def build_cas_msg_saml(msg, new_msg):
